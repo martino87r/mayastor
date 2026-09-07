@@ -302,7 +302,7 @@ pub struct MayastorCliArgs {
     /// round-robin over remote readers only when no local reader is
     /// healthy.
     #[clap(
-        long = "policy",
+        long,
         env = "NEXUS_READ_POLICY",
         default_value_t = nexus::NexusReadPolicy::RoundRobin
     )]
