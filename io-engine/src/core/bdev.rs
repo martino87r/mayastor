@@ -232,7 +232,8 @@ where
             .await
             .context(ShareNvmf {})?;
 
-        let rdma = MayastorEnvironment::global().rdma();
+        // Only add an rdma listener if our target is actually listening over rdma.
+        let rdma = MayastorEnvironment::global().rdma_target();
         subsystem.start(rdma).await.context(ShareNvmf {})
     }
 

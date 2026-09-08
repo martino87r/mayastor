@@ -168,21 +168,27 @@ impl TryFrom<&Url> for NvmfDeviceTemplate {
             .to_string();
 
         let trtype = match url.scheme() {
-            "nvmf" | "nvmf+tcp" => TrType::TCP,
-            "nvmf+rdma+tcp" => {
-                if MayastorEnvironment::global().rdma() {
-                    TrType::RDMA
-                } else {
-                    TrType::TCP
+            "nvmf" | "nvmf+tcp" => Ok(TrType::TCP),
+            // The target we're connecting to supports rdma, but we can only
+            // make use of it if this host can do rdma as well, which our own
+            // target having bound rdma is proof of.
+            "nvmf+rdma+tcp" => match MayastorEnvironment::global().rdma() {
+                None => Ok(TrType::TCP),
+                Some(rdma) if rdma.target() => Ok(TrType::RDMA),
+                Some(rdma) if rdma.fallback() => {
+                    warn!("RDMA is enabled but not available, connecting to {url} over tcp");
+                    Ok(TrType::TCP)
                 }
-            }
-            other => {
-                return Err(BdevError::InvalidUri {
+                Some(_) => Err(BdevError::RdmaUnavailable {
                     uri: url.to_string(),
-                    message: format!("unsupported nvmf scheme '{other}'"),
-                })
-            }
-        };
+                }),
+            },
+            other => Err(BdevError::InvalidUri {
+                uri: url.to_string(),
+                message: format!("unsupported nvmf scheme '{other}'"),
+            }),
+        }?;
+        warn!("Connecting to {url} over {trtype:?}");
 
         Ok(NvmfDeviceTemplate {
             name: url[url::Position::BeforeHost..url::Position::AfterPath].to_string(),
